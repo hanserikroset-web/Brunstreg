@@ -7,7 +7,7 @@ const SIGNS=[
   ['mucus','Klårt slim',2],['vulva','Hoven eller raud vulva',1],['feed','Mindre fôropptak',1],['voice','Rautar meir',1],
   ['blood','Blod',0]
 ];
-const SEMEN_TYPES=['SpermVital','Normal','RedX','Angus'];
+const SEMEN_TYPES=['Sperm vital','Normal','Redex','Angus'];
 function load(){try{return {...{cows:[],events:[],settings:defaultSettings},...JSON.parse(localStorage.getItem(KEY)||'{}'),settings:{...defaultSettings,...(JSON.parse(localStorage.getItem(KEY)||'{}').settings||{})}}}catch{return {cows:[],events:[],settings:defaultSettings}}}
 function save(){localStorage.setItem(KEY,JSON.stringify(state))}
 const $=s=>document.querySelector(s); const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
