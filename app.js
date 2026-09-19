@@ -1,0 +1,75 @@
+const KEY='brunstreg-data-v1';
+const defaultSettings={cycleDays:21,watchDays:2,notify:true};
+let state=load(); let route='today'; let installPrompt=null;
+
+const SIGNS=[
+  ['restless','Uro / auka aktivitet',1],['mounts','Hoppar på andre',2],['standing','Står for opphopping',5],
+  ['mucus','Klårt slim',2],['vulva','Hoven eller raud vulva',1],['feed','Mindre fôropptak',1],['voice','Rautar meir',1]
+];
+function load(){try{return {...{cows:[],events:[],settings:defaultSettings},...JSON.parse(localStorage.getItem(KEY)||'{}'),settings:{...defaultSettings,...(JSON.parse(localStorage.getItem(KEY)||'{}').settings||{})}}}catch{return {cows:[],events:[],settings:defaultSettings}}}
+function save(){localStorage.setItem(KEY,JSON.stringify(state))}
+const $=s=>document.querySelector(s); const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const uid=()=>crypto.randomUUID?.()||Date.now().toString(36)+Math.random().toString(36).slice(2);
+const fmt=d=>new Intl.DateTimeFormat('nb-NO',{dateStyle:'medium',timeStyle:'short'}).format(new Date(d));
+const fmtDate=d=>new Intl.DateTimeFormat('nb-NO',{dateStyle:'medium'}).format(new Date(d));
+const hours=(a,b=Date.now())=>(b-new Date(a).getTime())/36e5;
+const days=(a,b=Date.now())=>(b-new Date(a).getTime())/864e5;
+function cowName(c){return c.name?`${c.name} · ${c.number}`:c.number}
+function eventsFor(id,type){return state.events.filter(e=>e.cowId===id&&(!type||e.type===type)).sort((a,b)=>new Date(b.at)-new Date(a.at))}
+function status(c){
+  const recent=eventsFor(c.id,'observation').filter(e=>hours(e.at)<=24);
+  const score=recent.reduce((n,e)=>n+(e.signs||[]).reduce((s,k)=>s+(SIGNS.find(x=>x[0]===k)?.[2]||0),0),0);
+  const standing=recent.some(e=>e.signs?.includes('standing'));
+  const lastHeat=eventsFor(c.id,'observation')[0];
+  const inseminated=eventsFor(c.id,'insemination')[0];
+  const result=eventsFor(c.id).find(e=>['pregnant','notPregnant','calving'].includes(e.type));
+  if(inseminated&&(!result||new Date(inseminated.at)>new Date(result.at))){const d=days(inseminated.at); if(d>=18&&d<=24)return {level:'yellow',label:'Følg med på omløp',priority:2}; return {level:'green',label:'Inseminert',priority:0}}
+  if(standing||score>=7)return {level:'red',label:'Kontakt inseminør',priority:4};
+  if(score>=4)return {level:'orange',label:'Truleg brunst',priority:3};
+  if(score>=2)return {level:'yellow',label:'Følg nøye med',priority:2};
+  if(lastHeat){const until=state.settings.cycleDays-days(lastHeat.at);if(until<=state.settings.watchDays&&until>=-2)return {level:'yellow',label:until>0?`Venta om ${Math.ceil(until)} d`:'Venta brunst no',priority:1}}
+  return {level:'green',label:'Ingen varsel',priority:0};
+}
+function nextHeat(c){const e=eventsFor(c.id,'observation')[0];if(!e)return 'Ikkje berekna';const d=new Date(e.at);d.setDate(d.getDate()+Number(state.settings.cycleDays));return fmtDate(d)}
+function windowText(c){const e=eventsFor(c.id,'observation').find(x=>x.signs?.includes('standing'));if(!e)return '';const from=new Date(new Date(e.at).getTime()+8*36e5),to=new Date(new Date(e.at).getTime()+16*36e5);return `Rettleiande vindauge: ${fmt(from)}–${to.toLocaleTimeString('nb-NO',{hour:'2-digit',minute:'2-digit'})}`}
+function render(){document.querySelectorAll('.bottom-nav button').forEach(b=>b.classList.toggle('active',b.dataset.route===route));({today:renderToday,cows:renderCows,observe:renderObserve,history:renderHistory,settings:renderSettings}[route]||renderToday)()}
+function renderToday(){
+  const list=state.cows.map(c=>({c,s:status(c)})).sort((a,b)=>b.s.priority-a.s.priority);
+  const watch=list.filter(x=>x.s.priority>0);
+  $('#app').innerHTML=`<section class="hero"><h1>God ${new Date().getHours()<12?'morgon':new Date().getHours()<18?'dag':'kveld'}!</h1><p>Her er status i besetninga akkurat no.</p><div class="summary"><div><strong>${state.cows.length}</strong>kyr</div><div><strong>${watch.length}</strong>å følgje</div><div><strong>${list.filter(x=>x.s.level==='red').length}</strong>klare varsel</div></div></section><h2>Kyr å følgje i dag</h2>${watch.length?watch.map(x=>cowCard(x.c,x.s)).join(''):`<div class="card empty">✅ Ingen kyr krev ekstra oppfølging akkurat no.</div>`}<h2>Alle kyr</h2><div class="legend"><span><i class="green"></i>normal</span><span><i class="yellow"></i>følg med</span><span><i class="orange"></i>truleg brunst</span><span><i class="red"></i>kontakt inseminør</span></div>${list.map(x=>cowCard(x.c,x.s)).join('')||`<div class="card empty">Ingen kyr registrerte.<br><button onclick="openCowForm()">Legg til første ku</button></div>`}`;
+}
+function cowCard(c,s){return `<article class="card cow-card" onclick="openCow('${c.id}')"><i class="status-dot ${s.level}"></i><div><h3>${esc(cowName(c))}</h3><div class="meta">${esc(s.label)} · Neste brunst: ${nextHeat(c)}</div>${windowText(c)?`<div class="meta">${windowText(c)}</div>`:''}</div><span>›</span></article>`}
+function renderCows(){
+  $('#app').innerHTML=`<div class="row"><div><h1>Kyr</h1><p class="muted">${state.cows.length} registrerte dyr</p></div><button onclick="openCowForm()">＋ Legg til ku</button></div><input id="cowSearch" placeholder="Søk på namn eller nummer" oninput="filterCows(this.value)"><div id="cowList">${state.cows.sort((a,b)=>cowName(a).localeCompare(cowName(b))).map(c=>cowCard(c,status(c))).join('')||'<div class="empty">Ingen kyr registrerte</div>'}</div>`;
+}
+function filterCows(q){const s=q.toLowerCase();$('#cowList').innerHTML=state.cows.filter(c=>cowName(c).toLowerCase().includes(s)).map(c=>cowCard(c,status(c))).join('')||'<div class="empty">Ingen treff</div>'}
+function renderObserve(){
+  if(!state.cows.length){$('#app').innerHTML='<h1>Registrer brunstteikn</h1><div class="card empty">Legg til ei ku først.<br><button onclick="openCowForm()">Legg til ku</button></div>';return}
+  $('#app').innerHTML=`<h1>Registrer brunstteikn</h1><p class="muted">Tidspunktet blir fylt ut automatisk.</p><form id="obsForm" class="card"><label>Ku</label><select name="cowId" required><option value="">Vel ku</option>${state.cows.map(c=>`<option value="${c.id}">${esc(cowName(c))}</option>`).join('')}</select><label>Tidspunkt</label><input type="datetime-local" name="at" value="${localDateTime()}" required><label>Kva observerte du?</label><div class="sign-grid">${SIGNS.map(s=>`<label class="sign"><input type="checkbox" name="signs" value="${s[0]}"><span>${s[1]}</span></label>`).join('')}</div><label>Notat (valfritt)</label><textarea name="note" placeholder="Til dømes aktivitetsmålar, styrke eller andre observasjonar"></textarea><button type="submit">Lagre observasjon</button></form><div class="notice">Eitt teikn åleine er ikkje alltid sikker brunst. Ståbrunst er det sikraste teiknet. Insemineringstidspunkt avheng òg av sædtype – bruk appen som støtte og avtal med inseminør/veterinær.</div>`;
+  $('#obsForm').onsubmit=saveObservation;
+}
+function renderHistory(){
+ const events=[...state.events].sort((a,b)=>new Date(b.at)-new Date(a.at));
+ $('#app').innerHTML=`<h1>Historikk</h1><div class="tabs"><button class="active" onclick="historyFilter('all',this)">Alle</button><button onclick="historyFilter('observation',this)">Brunstteikn</button><button onclick="historyFilter('insemination',this)">Inseminering</button><button onclick="historyFilter('pregnant',this)">Drektigheit</button><button onclick="historyFilter('calving',this)">Kalving</button></div><div id="historyList">${historyHtml(events)}</div>`;
+}
+function historyHtml(events){return events.length?`<div class="card timeline">${events.map(e=>{const c=state.cows.find(c=>c.id===e.cowId);return `<div class="event"><strong>${esc(c?cowName(c):'Sletta ku')} · ${eventTitle(e)}</strong><div class="meta">${fmt(e.at)}</div>${e.note?`<div>${esc(e.note)}</div>`:''}</div>`}).join('')}</div>`:'<div class="card empty">Ingen hendingar registrerte</div>'}
+function historyFilter(type,btn){document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');$('#historyList').innerHTML=historyHtml(type==='all'?state.events:state.events.filter(e=>e.type===type))}
+function eventTitle(e){if(e.type==='observation')return (e.signs||[]).map(k=>SIGNS.find(s=>s[0]===k)?.[1]).filter(Boolean).join(', ');return {insemination:'Inseminert',pregnant:'Drektig',notPregnant:'Ikkje drektig',calving:'Kalving'}[e.type]||e.type}
+function renderSettings(){
+ $('#app').innerHTML=`<h1>Innstillingar</h1><form id="settingsForm" class="card"><label>Normal brunstsyklus (dagar)</label><input type="number" name="cycleDays" min="17" max="25" value="${state.settings.cycleDays}"><label>Start varsling før venta brunst (dagar)</label><input type="number" name="watchDays" min="1" max="7" value="${state.settings.watchDays}"><label><input style="width:auto" type="checkbox" name="notify" ${state.settings.notify?'checked':''}> Vis lokale varsel når appen blir opna</label><button type="submit">Lagre innstillingar</button></form><section class="card"><h2>Data og sikkerheitskopi</h2><p class="muted">Opplysningane er lagra berre på denne eininga. Ta sikkerheitskopi dersom data er viktige.</p><div class="actions"><button onclick="exportData()">Eksporter data</button><button class="secondary" onclick="$('#importFile').click()">Importer data</button><input id="importFile" class="hidden" type="file" accept="application/json" onchange="importData(this)"></div></section><section class="card"><h2>Om vurderingane</h2><p>Status byggjer på teikna du registrerer, ståbrunst og venta syklus. Rettleiande insemineringsvindauge blir vist 8–16 timar etter registrert ståbrunst. Optimalt tidspunkt varierer med sædtype og individ.</p></section>`;
+ $('#settingsForm').onsubmit=e=>{e.preventDefault();const f=new FormData(e.target);state.settings={cycleDays:Number(f.get('cycleDays')),watchDays:Number(f.get('watchDays')),notify:f.get('notify')==='on'};save();toast('Innstillingane er lagra')};
+}
+function openCowForm(cowId){const c=state.cows.find(x=>x.id===cowId)||{};showModal(`<h2>${c.id?'Rediger ku':'Legg til ku'}</h2><form id="cowForm"><input type="hidden" name="id" value="${c.id||''}"><label>Individnummer *</label><input name="number" required value="${esc(c.number||'')}"><label>Namn</label><input name="name" value="${esc(c.name||'')}"><div class="row"><div><label>Fødselsdato</label><input type="date" name="birth" value="${c.birth||''}"></div><div><label>Siste kalving</label><input type="date" name="lastCalving" value="${c.lastCalving||''}"></div></div><button type="submit">Lagre ku</button></form>`);$('#cowForm').onsubmit=e=>{e.preventDefault();const o=Object.fromEntries(new FormData(e.target));if(o.id){Object.assign(state.cows.find(x=>x.id===o.id),o)}else{state.cows.push({...o,id:uid()})}save();closeModal();route='cows';render();toast('Kua er lagra')};}
+function openCow(id){const c=state.cows.find(c=>c.id===id);if(!c)return;const ev=eventsFor(id);showModal(`<h2>${esc(cowName(c))}</h2><p class="muted">${c.birth?'Fødd '+fmtDate(c.birth):'Fødselsdato ikkje registrert'}${c.lastCalving?' · Siste kalving '+fmtDate(c.lastCalving):''}</p><div class="card"><strong>Status: ${status(c).label}</strong><div class="meta">Venta neste brunst: ${nextHeat(c)}</div>${windowText(c)?`<div>${windowText(c)}</div>`:''}</div><div class="actions"><button onclick="quickEvent('${id}','insemination')">Inseminert</button><button onclick="quickEvent('${id}','pregnant')">Drektig</button><button onclick="quickEvent('${id}','notPregnant')">Ikkje drektig</button><button onclick="quickEvent('${id}','calving')">Kalva</button></div><h3>Historikk</h3>${historyHtml(ev)}<div class="actions"><button class="secondary" onclick="closeModal();openCowForm('${id}')">Rediger ku</button><button class="danger" onclick="deleteCow('${id}')">Slett ku</button></div>`)}
+function quickEvent(id,type){state.events.push({id:uid(),cowId:id,type,at:new Date().toISOString(),note:''});if(type==='calving')state.cows.find(c=>c.id===id).lastCalving=new Date().toISOString().slice(0,10);save();openCow(id);toast('Hendinga er lagra')}
+function deleteCow(id){if(!confirm('Slette kua og heile historikken hennar?'))return;state.cows=state.cows.filter(c=>c.id!==id);state.events=state.events.filter(e=>e.cowId!==id);save();closeModal();render();toast('Kua er sletta')}
+function saveObservation(e){e.preventDefault();const f=new FormData(e.target),signs=f.getAll('signs');if(!signs.length){toast('Vel minst eitt brunstteikn');return}state.events.push({id:uid(),cowId:f.get('cowId'),type:'observation',at:new Date(f.get('at')).toISOString(),signs,note:f.get('note')});save();route='today';render();toast('Observasjonen er lagra');checkNotifications()}
+function showModal(html){$('#modalBody').innerHTML=html;$('#modal').showModal()}function closeModal(){$('#modal').close()}
+function localDateTime(){const d=new Date(Date.now()-new Date().getTimezoneOffset()*60000);return d.toISOString().slice(0,16)}
+function toast(s){const t=$('#toast');t.textContent=s;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+function exportData(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(state,null,2)],{type:'application/json'}));a.download=`brunstreg-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(a.href)}
+function importData(input){const file=input.files[0];if(!file)return;const r=new FileReader();r.onload=()=>{try{const data=JSON.parse(r.result);if(!Array.isArray(data.cows)||!Array.isArray(data.events))throw 0;state={...data,settings:{...defaultSettings,...data.settings}};save();render();toast('Data er importerte')}catch{alert('Fila kunne ikkje lesast som Brunstreg-data')}};r.readAsText(file)}
+async function checkNotifications(){if(!state.settings.notify||!('Notification'in window))return;if(Notification.permission==='default')await Notification.requestPermission();if(Notification.permission!=='granted')return;const urgent=state.cows.filter(c=>status(c).priority>=3);if(urgent.length)new Notification('Brunstreg',{body:`${urgent.length} ${urgent.length===1?'ku bør':'kyr bør'} følgjast opp no.`,icon:'icon.svg'})}
+document.querySelectorAll('.bottom-nav button').forEach(b=>b.onclick=()=>{route=b.dataset.route;render()});$('#modal').addEventListener('click',e=>{if(e.target===$('#modal'))closeModal()});
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('#installBtn').classList.remove('hidden')});$('#installBtn').onclick=async()=>{await installPrompt?.prompt();installPrompt=null;$('#installBtn').classList.add('hidden')};
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');render();setTimeout(checkNotifications,1000);
