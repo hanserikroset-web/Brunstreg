@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#174f3f">
+  <meta name="description" content="En enkel brunstkalender for storfe">
+  <title>Brunstreg</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div><span class="brand-mark">🐄</span><strong>Brunstreg</strong><small>Brunstoversikt for besetninga</small></div>
+    <button id="installBtn" class="ghost hidden">Installer</button>
+  </header>
+
+  <main id="app" class="app"></main>
+
+  <nav class="bottom-nav" aria-label="Hovudmeny">
+    <button data-route="today" class="active"><span>🏠</span>I dag</button>
+    <button data-route="cows"><span>🐄</span>Kyr</button>
+    <button data-route="observe" class="add"><span>＋</span>Brunstteikn</button>
+    <button data-route="history"><span>🕘</span>Historikk</button>
+    <button data-route="settings"><span>⚙️</span>Innstillingar</button>
+  </nav>
+
+  <dialog id="modal"><form method="dialog"><button class="modal-close" value="cancel" aria-label="Lukk">×</button><div id="modalBody"></div></form></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js" defer></script>
+</body>
+</html>
