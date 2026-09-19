@@ -1,0 +1,13 @@
+#modalBody {
+  padding: 22px;
+  overflow: auto;
+  max-height: 88vh;
+}
+
+.modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  float: none;
+}
