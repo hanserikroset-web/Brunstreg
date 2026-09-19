@@ -1,0 +1,10 @@
+{
+  "name":"Brunstreg – brunstoversikt",
+  "short_name":"Brunstreg",
+  "start_url":"./",
+  "display":"standalone",
+  "background_color":"#f7f5ee",
+  "theme_color":"#174f3f",
+  "lang":"no",
+  "icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}
