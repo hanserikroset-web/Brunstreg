@@ -19,7 +19,7 @@ const days=(a,b=Date.now())=>(b-new Date(a).getTime())/864e5;
 function cowName(c){return c.name?`${c.name} · ${c.number}`:c.number}
 function eventsFor(id,type){return state.events.filter(e=>e.cowId===id&&(!type||e.type===type)).sort((a,b)=>new Date(b.at)-new Date(a.at))}
 function activePregnancy(c){const pregnant=eventsFor(c.id,'pregnant')[0],ended=eventsFor(c.id).find(e=>['notPregnant','calving'].includes(e.type));return pregnant&&(!ended||new Date(pregnant.at)>new Date(ended.at))?pregnant:null}
-function latestCalving(c){const event=eventsFor(c.id,'calving')[0],profile=c.lastCalving?{at:c.lastCalving}:null;if(!event)return profile;if(!profile)return event;return new Date(event.at)>new Date(profile.at)?event:profile}
+function latestCalving(c){if(c.lastCalving)return {at:c.lastCalving};return eventsFor(c.id,'calving')[0]||null}
 function heatAnchor(c){return [eventsFor(c.id,'observation')[0],eventsFor(c.id,'insemination')[0],latestCalving(c)].filter(Boolean).sort((a,b)=>new Date(b.at)-new Date(a.at))[0]||null}
 function inseminationEligibleDate(c){const calving=latestCalving(c);if(!calving)return null;const date=new Date(calving.at);date.setDate(date.getDate()+42);return date}
 function inseminationEligibilityText(c){const date=inseminationEligibleDate(c);if(!date)return '';const today=new Date();today.setHours(0,0,0,0);const eligibleDay=new Date(date);eligibleDay.setHours(0,0,0,0);return eligibleDay>=today?`Kan inseminerast frå ${fmtDate(date)}`:''}
