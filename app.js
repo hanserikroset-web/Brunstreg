@@ -30,6 +30,8 @@ function expectedCalving(c){const pregnant=activePregnancy(c);if(!pregnant)retur
 function status(c){
   const pregnant=activePregnancy(c);
   if(pregnant){const due=expectedCalving(c);return {level:'green',label:due?`Drektig · kalving ${fmtDate(due)}`:'Drektig',priority:0}}
+  const calving=latestCalving(c),latestObservation=eventsFor(c.id,'observation')[0];
+  if(calving&&(!latestObservation||new Date(latestObservation.at)<=new Date(calving.at)))return {level:'green',label:'Ingen registreringer',priority:0};
   const recent=eventsFor(c.id,'observation').filter(e=>hours(e.at)<=24);
   const score=recent.reduce((n,e)=>n+(e.signs||[]).reduce((s,k)=>s+(SIGNS.find(x=>x[0]===k)?.[2]||0),0),0);
   const standing=recent.some(e=>e.signs?.includes('standing'));
